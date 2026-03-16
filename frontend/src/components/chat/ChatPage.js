@@ -54,7 +54,15 @@ const ChatPage = () => {
         setConnected(true);
         client.subscribe(`/topic/chat/${requestId}`, (msg) => {
           const incoming = JSON.parse(msg.body);
-          setMessages(prev => [...prev, incoming]);
+          setMessages(prev => {
+            // Prevent duplicate message if it was just added optimistically
+            // Check by ID if present, or by content/timestamp/sender if not
+            const exists = prev.some(m => 
+              (m.chatId && m.chatId === incoming.chatId) || 
+              (m.sender?.userId === incoming.sender?.userId && m.message === incoming.message && !m.chatId)
+            );
+            return exists ? prev : [...prev, incoming];
+          });
         });
       },
       onDisconnect: () => setConnected(false),
@@ -79,7 +87,20 @@ const ChatPage = () => {
   const handleSend = async () => {
     const receiverId = getReceiverId();
     if (!text.trim() || !receiverId) return;
-    const payload = { senderId: user.id, receiverId, message: text.trim() };
+    
+    const messageContent = text.trim();
+    setText(''); // Clear input immediately
+
+    // Optimistic Update
+    const tempMsg = {
+      chatId: null, // Temporary marker
+      sender: { userId: user.id, username: user.username },
+      message: messageContent,
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, tempMsg]);
+
+    const payload = { senderId: user.id, receiverId, message: messageContent };
 
     if (connected && clientRef.current?.connected) {
       clientRef.current.publish({
@@ -88,12 +109,14 @@ const ChatPage = () => {
       });
     } else {
       try {
-        await chatAPI.sendMessage(requestId, { receiverId, message: text.trim() });
-        const res = await chatAPI.getHistory(requestId);
-        setMessages(res.data);
-      } catch { setError('Failed to send message'); return; }
+        await chatAPI.sendMessage(requestId, { receiverId, message: messageContent });
+        // SILENT background sync or wait for WebSocket broadcast
+      } catch { 
+        setError('Failed to send message'); 
+        // Optional: rollback optimistic update on failure
+        setMessages(prev => prev.filter(m => m !== tempMsg));
+      }
     }
-    setText('');
   };
 
   const handleKeyDown = (e) => {

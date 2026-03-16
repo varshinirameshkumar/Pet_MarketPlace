@@ -33,10 +33,16 @@ const PetDetail = () => {
 
   const handleRequest = async () => {
     if (!user) { navigate('/login'); return; }
+    const prevDesc = desc;
+    setDesc('');
+    setMsg({ text: 'Sending request...', type: 'info' });
     try {
-      await requestAPI.submitRequest({ petId: pet.petId, description: desc });
+      await requestAPI.submitRequest({ petId: pet.petId, description: prevDesc });
       setMsg({ text: 'Request submitted! Check My Requests.', type: 'success' });
-    } catch (e) { setMsg({ text: e.response?.data?.message || 'Failed', type: 'error' }); }
+    } catch (e) {
+      setDesc(prevDesc);
+      setMsg({ text: e.response?.data?.message || 'Failed to send request', type: 'error' });
+    }
   };
 
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}><CircularProgress /></Box>;

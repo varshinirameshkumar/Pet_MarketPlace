@@ -1,8 +1,10 @@
 package com.petmarketplace.controller;
 
+import com.petmarketplace.dto.response.ChatMessageResponse;
 import com.petmarketplace.entity.*;
 import com.petmarketplace.exception.ResourceNotFoundException;
 import com.petmarketplace.repository.*;
+import com.petmarketplace.security.UserDetailsImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,11 +30,28 @@ public class ChatController {
     @Autowired private UserRepository userRepository;
     @Autowired private SimpMessagingTemplate messagingTemplate;
 
+    private User getUser(UserDetails ud) {
+        if (ud instanceof UserDetailsImpl) {
+            return userRepository.findById(((UserDetailsImpl) ud).getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        }
+        return userRepository.findByUsername(ud.getUsername())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+
+    private Long getUserId(UserDetails ud) {
+        if (ud instanceof UserDetailsImpl) {
+            return ((UserDetailsImpl) ud).getUserId();
+        }
+        return getUser(ud).getUserId();
+    }
+
     @GetMapping("/{requestId}/history")
     @Operation(summary = "Get chat history for a request")
-    public ResponseEntity<List<ChatMessage>> getChatHistory(@PathVariable Long requestId) {
-        return ResponseEntity.ok(
-                chatMessageRepository.findByRequest_RequestIdOrderByTimestampAsc(requestId));
+    public ResponseEntity<List<ChatMessageResponse>> getChatHistory(@PathVariable Long requestId) {
+        List<ChatMessageResponse> responses = chatMessageRepository.findByRequest_RequestIdOrderByTimestampAsc(requestId)
+                .stream().map(ChatMessageResponse::fromEntity).toList();
+        return ResponseEntity.ok(responses);
     }
 
     @PostMapping("/{requestId}/send")
@@ -42,8 +61,7 @@ public class ChatController {
             @PathVariable Long requestId,
             @RequestBody Map<String, Object> body) {
 
-        User sender = userRepository.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Long senderId = getUserId(userDetails);
         Request request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Request not found: " + requestId));
 
@@ -56,16 +74,42 @@ public class ChatController {
 
         ChatMessage msg = ChatMessage.builder()
                 .request(request)
+                .sender(User.builder().userId(senderId).build())
+                .receiver(receiver)
+                .message(body.get("message").toString())
+                .build();
+
+        chatMessageRepository.save(msg);
+        ChatMessageResponse response = ChatMessageResponse.fromEntity(msg);
+
+        // Push via WebSocket
+        messagingTemplate.convertAndSend("/topic/chat/" + requestId, response);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @MessageMapping("/chat/{requestId}")
+    public void handleWebSocketMessage(@DestinationVariable Long requestId, Map<String, Object> body) {
+        Request request = requestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Request not found"));
+
+        if (request.getStatus() != Request.RequestStatus.ACCEPTED) return;
+
+        Long senderId = Long.valueOf(body.get("senderId").toString());
+        Long receiverId = Long.valueOf(body.get("receiverId").toString());
+        
+        User sender = userRepository.findById(senderId).orElseThrow();
+        User receiver = userRepository.findById(receiverId).orElseThrow();
+
+        ChatMessage msg = ChatMessage.builder()
+                .request(request)
                 .sender(sender)
                 .receiver(receiver)
                 .message(body.get("message").toString())
                 .build();
 
         chatMessageRepository.save(msg);
-
-        // Push via WebSocket
-        messagingTemplate.convertAndSend("/topic/chat/" + requestId, msg);
-
-        return ResponseEntity.ok(msg);
+        
+        messagingTemplate.convertAndSend("/topic/chat/" + requestId, ChatMessageResponse.fromEntity(msg));
     }
 }

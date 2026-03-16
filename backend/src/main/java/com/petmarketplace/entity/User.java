@@ -39,12 +39,15 @@ public class User {
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @OneToMany(mappedBy = "seller", cascade = CascadeType.ALL)
     private List<Pet> pets;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @OneToMany(mappedBy = "buyer", cascade = CascadeType.ALL)
     private List<CartItem> cartItems;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @OneToMany(mappedBy = "buyer", cascade = CascadeType.ALL)
     private List<Request> buyerRequests;
 

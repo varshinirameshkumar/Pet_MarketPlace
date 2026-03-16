@@ -8,6 +8,7 @@ import java.util.Optional;
 
 @Repository
 public interface CartItemRepository extends JpaRepository<CartItem, Long> {
+    @org.springframework.data.jpa.repository.Query("SELECT c FROM CartItem c JOIN FETCH c.pet p JOIN FETCH p.seller s WHERE c.buyer.userId = :buyerId")
     List<CartItem> findByBuyer_UserId(Long buyerId);
     Optional<CartItem> findByBuyer_UserIdAndPet_PetId(Long buyerId, Long petId);
     void deleteByBuyer_UserId(Long buyerId);

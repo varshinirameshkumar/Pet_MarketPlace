@@ -1,14 +1,14 @@
 import React from 'react';
 import { 
   Container, Typography, Box, Paper, List, ListItem, 
-  ListItemText, IconButton, Button, Divider, Avatar 
+  ListItemText, IconButton, Button, Divider, Avatar, CircularProgress
 } from '@mui/material';
 import { Delete, ShoppingCart, ArrowBack } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 
 const CartPage = () => {
-  const { cartItems, removeFromCart, checkout, cartCount } = useCart();
+  const { cartItems, removeFromCart, checkout, cartCount, loading } = useCart();
   const navigate = useNavigate();
 
   const handleCheckout = async () => {
@@ -19,6 +19,15 @@ const CartPage = () => {
       console.error("Checkout failed", err);
     }
   };
+
+  if (loading) {
+    return (
+      <Container maxWidth="md" sx={{ py: 10, textAlign: 'center' }}>
+        <CircularProgress />
+        <Typography sx={{ mt: 2 }}>Loading your cart...</Typography>
+      </Container>
+    );
+  }
 
   // If items are 0, show the empty state
   if (!cartItems || cartItems.length === 0) {
@@ -47,21 +56,45 @@ const CartPage = () => {
         <List disablePadding>
           {cartItems.map((item, idx) => (
             <React.Fragment key={item.cartItemId || idx}>
-              <ListItem sx={{ py: 2, px: 3 }}>
+              <ListItem 
+                sx={{ 
+                  py: 2, px: 3, 
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: 'action.hover' },
+                  transition: 'background-color 0.2s'
+                }}
+                onClick={() => navigate(`/pets/${item.pet?.petId}`)}
+              >
                 <Avatar 
                   src={item.pet?.imageUrl} 
                   variant="rounded" 
-                  sx={{ width: 80, height: 80, mr: 2 }} 
+                  sx={{ width: 80, height: 80, mr: 2, boxShadow: 1 }} 
                 />
                 <ListItemText 
                   primary={
-                    <Typography variant="h6" fontWeight={600}>
+                    <Typography variant="h6" fontWeight={600} color="primary.main">
                       {item.pet?.breed || "Pet Listing"}
                     </Typography>
                   }
-                  secondary={`Price: ${item.pet?.type === 'ADOPTION' ? 'Free' : `$${item.pet?.price}`}`}
+                  secondary={
+                    <Box mt={0.5}>
+                      <Typography variant="body2" color="text.secondary">
+                        Category: {item.pet?.category}
+                      </Typography>
+                      <Typography variant="subtitle1" fontWeight={700} color="secondary.main">
+                        {item.pet?.type === 'ADOPTION' ? 'Free for Adoption' : `$${item.pet?.price}`}
+                      </Typography>
+                    </Box>
+                  }
                 />
-                <IconButton color="error" onClick={() => removeFromCart(item.cartItemId)}>
+                <IconButton 
+                  color="error" 
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent navigation when deleting
+                    removeFromCart(item.cartItemId);
+                  }}
+                  sx={{ ml: 1 }}
+                >
                   <Delete />
                 </IconButton>
               </ListItem>

@@ -77,6 +77,23 @@ public class PaymentController {
         ));
     }
 
+    @GetMapping("/confirm")
+    @Operation(summary = "Confirm payment session status (fallback for development)")
+    public ResponseEntity<?> confirmPayment(@RequestParam String session_id) throws StripeException {
+        Session session = Session.retrieve(session_id);
+        if ("paid".equals(session.getPaymentStatus())) {
+            String orderId = session.getMetadata().get("orderId");
+            return orderRepository.findById(Long.parseLong(orderId)).map(order -> {
+                order.setPaymentStatus(Order.PaymentStatus.PAID);
+                order.setStatus(Order.OrderStatus.COMPLETED); // Set to COMPLETED
+                order.setStripePaymentIntentId(session.getPaymentIntent());
+                orderRepository.save(order);
+                return ResponseEntity.ok(Map.of("message", "Payment confirmed", "orderId", orderId));
+            }).orElseThrow(() -> new ResourceNotFoundException("Order not found for session"));
+        }
+        return ResponseEntity.status(400).body(Map.of("message", "Payment not completed"));
+    }
+
     @PostMapping("/webhook")
     @Operation(summary = "Stripe webhook handler")
     public ResponseEntity<String> handleWebhook(
@@ -92,6 +109,7 @@ public class PaymentController {
                 String orderId = session.getMetadata().get("orderId");
                 orderRepository.findById(Long.parseLong(orderId)).ifPresent(order -> {
                     order.setPaymentStatus(Order.PaymentStatus.PAID);
+                    order.setStatus(Order.OrderStatus.COMPLETED); // Set to COMPLETED
                     order.setStripePaymentIntentId(session.getPaymentIntent());
                     orderRepository.save(order);
                 });

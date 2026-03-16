@@ -3,7 +3,7 @@ import {
   Container, Typography, Box, Chip, Paper, List, ListItem,
   ListItemText, Divider, Button, CircularProgress, Alert, Avatar
 } from '@mui/material';
-import { CheckCircle, Chat, ArrowBack } from '@mui/icons-material';
+import { Chat, ArrowBack, ShoppingBag } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { orderAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -11,7 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 const ORDER_COLORS = { PROCESSING: 'warning', COMPLETED: 'success', CANCELLED: 'error' };
 const PAY_COLORS   = { PENDING: 'default', PAID: 'success', FAILED: 'error', REFUNDED: 'info' };
 
-const OrderList = () => {
+const BuyerOrderList = () => {
   const { user } = useAuth();
   const navigate  = useNavigate();
   const [orders,  setOrders]  = useState([]);
@@ -20,27 +20,17 @@ const OrderList = () => {
 
   useEffect(() => {
     if (user) {
-      orderAPI.getSellerOrders(user.id)
+      orderAPI.getBuyerOrders(user.id)
         .then(r => setOrders(r.data))
         .catch(() => setAlert({ msg: 'Failed to load orders', type: 'error' }))
         .finally(() => setLoading(false));
     }
   }, [user]);
 
-  const handleComplete = async (orderId) => {
-    try {
-      await orderAPI.completeOrder(orderId);
-      setAlert({ msg: 'Order marked as completed!', type: 'success' });
-      orderAPI.getSellerOrders(user.id).then(r => setOrders(r.data));
-    } catch (e) {
-      setAlert({ msg: e.response?.data?.message || 'Failed to update order', type: 'error' });
-    }
-  };
-
   const handleClear = async () => {
     if (!window.confirm("Are you sure you want to clear all completed orders?")) return;
     try {
-      await orderAPI.clearCompletedOrdersSeller();
+      await orderAPI.clearCompletedOrders();
       setOrders(prev => prev.filter(o => o.status !== 'COMPLETED'));
       setAlert({ msg: 'Completed orders cleared!', type: 'success' });
     } catch (e) {
@@ -56,7 +46,7 @@ const OrderList = () => {
     <Container maxWidth="md" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
-          <Button startIcon={<ArrowBack />} onClick={() => navigate('/seller')} sx={{ mb: 1 }}>Back to Dashboard</Button>
+          <Button startIcon={<ArrowBack />} onClick={() => navigate('/requests')} sx={{ mb: 1 }}>Back to Requests</Button>
           <Typography variant="h4" fontWeight={700}>My Orders</Typography>
         </Box>
         {hasCompleted && (
@@ -70,7 +60,8 @@ const OrderList = () => {
 
       {orders.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 3 }}>
-          <Typography color="text.secondary">No orders yet. Approve buyer requests to create orders.</Typography>
+          <Typography color="text.secondary">No orders yet. Once your pet requests are accepted, they will appear here.</Typography>
+          <Button variant="contained" sx={{ mt: 2 }} onClick={() => navigate('/')}>Browse Pets</Button>
         </Paper>
       ) : (
         <Paper elevation={2} sx={{ borderRadius: 3 }}>
@@ -82,40 +73,37 @@ const OrderList = () => {
                   <Avatar 
                     variant="rounded"
                     src={order.request?.pet?.imageUrl} 
-                    sx={{ width: 80, height: 80, mr: 2, bgcolor: 'grey.100' }}
-                  />
+                    sx={{ width: 80, height: 80, mr: 2, bgcolor: 'grey.200' }}
+                  >
+                    <ShoppingBag />
+                  </Avatar>
                   <ListItemText
                     primary={
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Typography variant="h6" fontWeight={600}>
-                          {order.request?.pet?.breed || 'Pet'} (Order #{order.orderId})
+                          {order.request?.pet?.breed || 'Pet'}
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <Chip size="small" label={order.status} color={ORDER_COLORS[order.status] || 'default'} />
-                          <Chip size="small" label={order.paymentStatus}
-                            color={PAY_COLORS[order.paymentStatus] || 'default'} variant="outlined" />
                         </Box>
                       </Box>
                     }
                     secondary={
                       <Box mt={1}>
-                        <Typography variant="body1" color="text.primary" fontWeight={500} mb={0.5}>
+                        <Typography variant="body1" color="text.primary" fontWeight={500}>
                           {order.request?.pet?.type === 'ADOPTION' ? 'Free Adoption' : `Price: $${order.request?.pet?.price}`}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Buyer: {order.request?.buyer?.username} &bull; 
-                          Created: {new Date(order.createdAt).toLocaleString()}
+                          Seller: {order.sellerUsername} &bull; 
+                          Status: {order.paymentStatus === 'PAID' ? 'Paid ✓' : 'Payment Pending'}
                         </Typography>
-                        <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
-                          {order.status === 'PROCESSING' && (
-                            <Button size="small" variant="contained" color="success"
-                              startIcon={<CheckCircle />} onClick={() => handleComplete(order.orderId)}>
-                              Mark Complete
-                            </Button>
-                          )}
+                        <Typography variant="caption" color="text.disabled">
+                          Ordered on: {new Date(order.createdAt).toLocaleDateString()}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
                           <Button size="small" variant="outlined" startIcon={<Chat />}
                             onClick={() => navigate(`/chat/${order.request?.requestId}`)}>
-                            Open Chat
+                            Chat with Seller
                           </Button>
                         </Box>
                       </Box>
@@ -131,4 +119,4 @@ const OrderList = () => {
   );
 };
 
-export default OrderList;
+export default BuyerOrderList;

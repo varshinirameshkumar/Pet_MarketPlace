@@ -75,6 +75,7 @@ export const requestAPI = {
   approveRequest:  (id)   => api.put(`/requests/${id}/approve`),
   rejectRequest:   (id)   => api.put(`/requests/${id}/reject`),
   getRequest:      (id)   => api.get(`/requests/${id}`),
+  clearRejectedRequests: () => api.delete('/requests/clear-rejected'),
 };
 
 // ─── Orders ──────────────────────────────────────────────────
@@ -82,11 +83,14 @@ export const orderAPI = {
   getSellerOrders: (id)  => api.get(`/orders/seller/${id}`),
   getBuyerOrders:  (id)  => api.get(`/orders/buyer/${id}`),
   completeOrder:   (id)  => api.put(`/orders/${id}/complete`),
+  clearCompletedOrders: () => api.delete('/orders/clear-completed'),
+  clearCompletedOrdersSeller: () => api.delete('/orders/clear-completed-seller'),
 };
 
 // ─── Payment ─────────────────────────────────────────────────
 export const paymentAPI = {
   createCheckoutSession: (data) => api.post('/payment/create-checkout-session', data),
+  confirmPayment: (sessionId) => api.get(`/payment/confirm?session_id=${sessionId}`),
 };
 
 // ─── Chat ────────────────────────────────────────────────────

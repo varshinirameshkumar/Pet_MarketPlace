@@ -69,6 +69,7 @@ const Navbar = () => {
             <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
               <MenuItem onClick={() => { navigate('/profile'); handleClose(); }}>My Profile</MenuItem>
               <MenuItem onClick={() => { navigate('/requests'); handleClose(); }}>My Requests</MenuItem>
+              <MenuItem onClick={() => { navigate('/orders'); handleClose(); }}>My Orders</MenuItem>
               <MenuItem onClick={() => { navigate('/seller'); handleClose(); }}>Seller Dashboard</MenuItem>
               <MenuItem onClick={() => { navigate('/seller/licenses'); handleClose(); }}>Licenses</MenuItem>
               <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>Logout</MenuItem>

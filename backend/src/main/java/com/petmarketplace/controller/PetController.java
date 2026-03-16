@@ -6,6 +6,7 @@ import com.petmarketplace.dto.response.PetResponse;
 import com.petmarketplace.entity.*;
 import com.petmarketplace.exception.ResourceNotFoundException;
 import com.petmarketplace.repository.*;
+import com.petmarketplace.security.UserDetailsImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,14 +31,30 @@ public class PetController {
     @Autowired private UserRepository userRepository;
     @Autowired private LicenseRepository licenseRepository;
 
+    private User getUser(UserDetails ud) {
+        if (ud instanceof UserDetailsImpl) {
+            return userRepository.findById(((UserDetailsImpl) ud).getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        }
+        return userRepository.findByUsername(ud.getUsername())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+
+    private Long getUserId(UserDetails ud) {
+        if (ud instanceof UserDetailsImpl) {
+            return ((UserDetailsImpl) ud).getUserId();
+        }
+        return getUser(ud).getUserId();
+    }
+
     @PostMapping("/add")
+    @Transactional
     @Operation(summary = "Add a new pet listing")
     public ResponseEntity<?> addPet(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody PetRequest req) {
 
-        User seller = userRepository.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User seller = getUser(userDetails);
 
         // License required for sale pets
         License license = null;
@@ -101,22 +119,22 @@ public class PetController {
     @Operation(summary = "Get all pets listed by the logged-in seller")
     public ResponseEntity<List<PetResponse>> getMyListings(
             @AuthenticationPrincipal UserDetails userDetails) {
-        User seller = userRepository.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        List<PetResponse> pets = petRepository.findBySeller_UserId(seller.getUserId())
+        Long sellerId = getUserId(userDetails);
+        List<PetResponse> pets = petRepository.findBySeller_UserId(sellerId)
                 .stream().map(PetResponse::fromEntity).collect(Collectors.toList());
         return ResponseEntity.ok(pets);
     }
 
     @DeleteMapping("/{id}")
+    @Transactional
     @Operation(summary = "Delete a pet listing")
     public ResponseEntity<?> deletePet(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long id) {
+        Long sellerId = getUserId(userDetails);
         Pet pet = petRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Pet not found"));
-        User seller = userRepository.findByUsername(userDetails.getUsername()).orElseThrow();
-        if (!pet.getSeller().getUserId().equals(seller.getUserId()))
+        if (!pet.getSeller().getUserId().equals(sellerId))
             return ResponseEntity.status(403).body(new MessageResponse("Not authorized"));
         petRepository.delete(pet);
         return ResponseEntity.ok(new MessageResponse("Pet listing removed"));

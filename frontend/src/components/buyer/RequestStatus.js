@@ -45,15 +45,34 @@ const RequestStatus = () => {
     } catch (e) { alert('Payment error: ' + e.response?.data?.message); }
   };
 
+  const handleClearRejected = async () => {
+    if (!window.confirm("Are you sure you want to clear all rejected requests?")) return;
+    try {
+      await requestAPI.clearRejectedRequests();
+      setRequests(prev => prev.filter(r => r.status !== 'REJECTED'));
+    } catch (e) {
+      alert('Failed to clear requests: ' + (e.response?.data?.message || e.message));
+    }
+  };
+
   if (loading) return (
     <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
       <CircularProgress />
     </Box>
   );
 
+  const hasRejected = requests.some(r => r.status === 'REJECTED');
+
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
-      <Typography variant="h4" fontWeight={700} mb={3}>My Requests</Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" fontWeight={700}>My Requests</Typography>
+        {hasRejected && (
+          <Button variant="outlined" color="error" size="small" onClick={handleClearRejected}>
+            Clear Rejected
+          </Button>
+        )}
+      </Box>
 
       {requests.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 3 }}>
@@ -97,10 +116,26 @@ const RequestStatus = () => {
                                 Pay Now
                               </Button>
                             )}
-                            {order?.paymentStatus === 'PAID' && (
-                              <Chip size="small" label="Paid ✓" color="success" />
-                            )}
                           </Box>
+
+                           {/* Helpful Status Messages */}
+                          {req.status === 'ACCEPTED' && (
+                            <Box mt={1}>
+                              {req.pet?.type === 'ADOPTION' && (
+                                <Typography variant="body2" color="success.main" fontWeight={600}>
+                                  ✓ Free Adoption - The seller will finalize this order.
+                                </Typography>
+                              )}
+                              {!order && req.pet?.type === 'SALE' && (
+                                <Typography variant="body2" color="error.main" fontWeight={600}>
+                                  ⚠ Legacy Request - Order was not generated. Please make a new request to test stripe checkout.
+                                </Typography>
+                              )}
+                              {order?.paymentStatus === 'PAID' && (
+                                <Chip size="small" label="Paid ✓" color="success" sx={{ mt: 1 }} />
+                              )}
+                            </Box>
+                          )}
                         </Box>
                       }
                     />

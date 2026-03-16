@@ -59,21 +59,31 @@ const SellerDashboard = () => {
   useEffect(() => { if (user) fetchAll(); }, [user]);
 
   const handleApprove = async (id) => {
+    // Optimistic Update
+    const originalRequests = [...requests];
+    setRequests(prev => prev.map(r => r.requestId === id ? { ...r, status: 'ACCEPTED' } : r));
+    
     try {
       await requestAPI.approveRequest(id);
-      setAlert({ msg: 'Request approved! Order created and chat unlocked.', type: 'success' });
-      fetchAll();
+      setAlert({ msg: 'Request approved! Order created.', type: 'success' });
+      // Minor background sync for orders/listings balance
+      fetchAll(); 
     } catch (e) {
+      setRequests(originalRequests);
       setAlert({ msg: e.response?.data?.message || 'Failed to approve', type: 'error' });
     }
   };
-
+ 
   const handleReject = async (id) => {
+    // Optimistic Update
+    const originalRequests = [...requests];
+    setRequests(prev => prev.map(r => r.requestId === id ? { ...r, status: 'REJECTED' } : r));
+ 
     try {
       await requestAPI.rejectRequest(id);
       setAlert({ msg: 'Request rejected.', type: 'info' });
-      fetchAll();
     } catch (e) {
+      setRequests(originalRequests);
       setAlert({ msg: e.response?.data?.message || 'Failed to reject', type: 'error' });
     }
   };

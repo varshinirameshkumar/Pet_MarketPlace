@@ -11,6 +11,7 @@ import PetCatalog from './components/buyer/PetCatalog';
 import PetDetail from './components/buyer/PetDetail';
 import CartPage from './components/buyer/CartPage';
 import RequestStatus from './components/buyer/RequestStatus';
+import BuyerOrderList from './components/buyer/BuyerOrderList';
 import SellerDashboard from './components/seller/SellerDashboard';
 import AddPetForm from './components/seller/AddPetForm';
 import OrderList from './components/seller/OrderList';
@@ -46,6 +47,7 @@ const AppRoutes = () => (
       <Route path="/pets/:id"      element={<PetDetail />} />
       <Route path="/cart"          element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
       <Route path="/requests"      element={<ProtectedRoute><RequestStatus /></ProtectedRoute>} />
+      <Route path="/orders"        element={<ProtectedRoute><BuyerOrderList /></ProtectedRoute>} />
       <Route path="/seller"        element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
       <Route path="/seller/add-pet"element={<ProtectedRoute><AddPetForm /></ProtectedRoute>} />
       <Route path="/seller/orders" element={<ProtectedRoute><OrderList /></ProtectedRoute>} />

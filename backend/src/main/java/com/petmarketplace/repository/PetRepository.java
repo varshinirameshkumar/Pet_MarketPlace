@@ -10,11 +10,12 @@ import java.util.List;
 @Repository
 public interface PetRepository extends JpaRepository<Pet, Long> {
 
+    @Query("SELECT p FROM Pet p JOIN FETCH p.seller s WHERE p.availability = true")
     List<Pet> findByAvailabilityTrue();
 
     List<Pet> findBySeller_UserId(Long sellerId);
 
-    @Query("SELECT p FROM Pet p WHERE p.availability = true " +
+    @Query("SELECT p FROM Pet p JOIN FETCH p.seller s WHERE p.availability = true " +
            "AND (:category IS NULL OR LOWER(p.category) = LOWER(:category)) " +
            "AND (:breed IS NULL OR LOWER(p.breed) LIKE LOWER(CONCAT('%', :breed, '%'))) " +
            "AND (:location IS NULL OR LOWER(p.location) LIKE LOWER(CONCAT('%', :location, '%'))) " +

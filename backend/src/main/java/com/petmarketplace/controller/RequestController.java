@@ -1,9 +1,11 @@
 package com.petmarketplace.controller;
 
 import com.petmarketplace.dto.response.MessageResponse;
+import com.petmarketplace.dto.response.RequestResponse;
 import com.petmarketplace.entity.*;
 import com.petmarketplace.exception.ResourceNotFoundException;
 import com.petmarketplace.repository.*;
+import com.petmarketplace.security.UserDetailsImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,16 +31,28 @@ public class RequestController {
     @Autowired private OrderRepository orderRepository;
 
     private User getUser(UserDetails ud) {
+        if (ud instanceof UserDetailsImpl) {
+            return userRepository.findById(((UserDetailsImpl) ud).getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        }
         return userRepository.findByUsername(ud.getUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
+    private Long getUserId(UserDetails ud) {
+        if (ud instanceof UserDetailsImpl) {
+            return ((UserDetailsImpl) ud).getUserId();
+        }
+        return getUser(ud).getUserId();
+    }
+
     @PostMapping("/add")
+    @Transactional
     @Operation(summary = "Submit a request for a pet")
     public ResponseEntity<?> submitRequest(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody Map<String, Object> body) {
-        User buyer = getUser(userDetails);
+        Long buyerId = getUserId(userDetails);
         Long petId = Long.valueOf(body.get("petId").toString());
         Pet pet = petRepository.findById(petId)
                 .orElseThrow(() -> new ResourceNotFoundException("Pet not found: " + petId));
@@ -46,30 +61,35 @@ public class RequestController {
             return ResponseEntity.badRequest().body(new MessageResponse("Pet is no longer available"));
 
         Request request = Request.builder()
-                .buyer(buyer)
+                .buyer(User.builder().userId(buyerId).build())
                 .pet(pet)
                 .description(body.getOrDefault("description", "").toString())
                 .status(Request.RequestStatus.PENDING)
                 .build();
 
         requestRepository.save(request);
-        return ResponseEntity.ok(request);
+        return ResponseEntity.ok(RequestResponse.fromEntity(request));
     }
-
+    
     @GetMapping("/buyer/{buyerId}")
     @Operation(summary = "Get all requests by buyer ID")
-    public ResponseEntity<List<Request>> getBuyerRequests(@PathVariable Long buyerId) {
-        return ResponseEntity.ok(requestRepository.findByBuyer_UserId(buyerId));
+    public ResponseEntity<List<RequestResponse>> getBuyerRequests(@PathVariable Long buyerId) {
+        List<RequestResponse> responses = requestRepository.findByBuyer_UserId(buyerId)
+                .stream().map(RequestResponse::fromEntity).toList();
+        return ResponseEntity.ok(responses);
     }
-
+    
     @GetMapping("/seller")
     @Operation(summary = "Get all requests for the logged-in seller's pets")
-    public ResponseEntity<List<Request>> getSellerRequests(@AuthenticationPrincipal UserDetails userDetails) {
-        User seller = getUser(userDetails);
-        return ResponseEntity.ok(requestRepository.findByPet_Seller_UserId(seller.getUserId()));
+    public ResponseEntity<List<RequestResponse>> getSellerRequests(@AuthenticationPrincipal UserDetails userDetails) {
+        Long sellerId = getUserId(userDetails);
+        List<RequestResponse> responses = requestRepository.findByPet_Seller_UserId(sellerId)
+                .stream().map(RequestResponse::fromEntity).toList();
+        return ResponseEntity.ok(responses);
     }
 
     @PutMapping("/{id}/approve")
+    @Transactional
     @Operation(summary = "Approve a buyer request (seller action)")
     public ResponseEntity<?> approveRequest(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -105,6 +125,7 @@ public class RequestController {
     }
 
     @PutMapping("/{id}/reject")
+    @Transactional
     @Operation(summary = "Reject a buyer request (seller action)")
     public ResponseEntity<?> rejectRequest(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -123,8 +144,18 @@ public class RequestController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get a single request by ID")
-    public ResponseEntity<Request> getRequest(@PathVariable Long id) {
+    public ResponseEntity<RequestResponse> getRequest(@PathVariable Long id) {
         return ResponseEntity.ok(requestRepository.findById(id)
+                .map(RequestResponse::fromEntity)
                 .orElseThrow(() -> new ResourceNotFoundException("Request not found: " + id)));
+    }
+ 
+    @DeleteMapping("/clear-rejected")
+    @Transactional
+    @Operation(summary = "Clear all rejected requests for the logged-in buyer")
+    public ResponseEntity<?> clearRejectedRequests(@AuthenticationPrincipal UserDetails userDetails) {
+        Long buyerId = getUserId(userDetails);
+        requestRepository.deleteByBuyer_UserIdAndStatus(buyerId, Request.RequestStatus.REJECTED);
+        return ResponseEntity.ok(new MessageResponse("Rejected requests cleared"));
     }
 }
