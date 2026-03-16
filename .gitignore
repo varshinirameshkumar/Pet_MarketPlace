@@ -3,7 +3,6 @@
 # ============================================================
 
 # --- CREDENTIALS (NEVER commit these) ---
-backend/src/main/resources/application.properties
 frontend/.env
 frontend/.env.local
 frontend/.env.production
